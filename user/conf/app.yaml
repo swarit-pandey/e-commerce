@@ -1,0 +1,36 @@
+user:
+  metadata:
+    enabled: true
+    domain: user
+    env: dev
+
+  server:
+    basepath: /user
+    port: 7074
+    adderess: localhost
+
+  broker:
+    port: 5762 
+    driver: rabbitmq
+    address: localhost
+    publish:
+      exchange: user
+      queue: "*"
+    consume: 
+      exhcnage: "*"
+      queue: "*"
+
+  cache:
+    port: 3000
+    driver: aerospikedb
+
+  database:
+    port: 5432
+    driver: postgresql
+    address: localhost
+    dialect: sql
+    name: user
+    username: ""
+    password: ""
+    ssl: disabled
+    maxconnpool: 10

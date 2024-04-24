@@ -1,0 +1,37 @@
+product:
+  metadata:
+    enabled: true
+    domain: product
+    env: dev
+
+  server:
+    basepath: /product
+    port: 7072
+    adderess: localhost
+
+  broker:
+    port: 5762 
+    driver: rabbitmq
+    address: localhost
+    publish:
+      exchange: product
+      queue: "*"
+    consume: 
+      exhcnage: "*"
+      queue: "*"
+
+  cache:
+    port: 3000
+    driver: aerospikedb
+
+  database:
+    port: 5432
+    driver: postgresql
+    address: localhost
+    dialect: sql
+    name: product
+    username: ""
+    password: ""
+    ssl: disabled
+    maxconnpool: 10
+

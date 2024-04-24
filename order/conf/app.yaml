@@ -1,0 +1,36 @@
+order:
+  metadata:
+    enabled: true
+    domain: order
+    env: dev
+
+  server:
+    basepath: /order
+    port: 7073
+    adderess: localhost
+
+  broker:
+    port: 5762 
+    driver: rabbitmq
+    address: localhost
+    publish:
+      exchange: order
+      queue: "*"
+    consume: 
+      exhcnage: "*"
+      queue: "*"
+
+  cache:
+    port: 3000
+    driver: aerospikedb
+
+  database:
+    port: 5432
+    driver: postgresql
+    address: localhost
+    dialect: sql
+    name: order
+    username: ""
+    password: ""
+    ssl: disabled
+    maxconnpool: 10
