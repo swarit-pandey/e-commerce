@@ -7,8 +7,7 @@ type User struct {
 	Username     string        `gorm:"uniqueIndex" json:"username"`
 	Email        string        `gorm:"uniqueIndex" json:"email"`
 	PasswordHash string        `json:"-"`
-	FirstName    string        `json:"first_name"`
-	LastName     string        `json:"last_name"`
+	Name         string        `json:"name"`
 	CreatedAt    time.Time     `json:"created_at"`
 	UpdatedAt    time.Time     `json:"updated_at"`
 	Addresses    []UserAddress `gorm:"foreignKey:UserID" json:"addresses"`

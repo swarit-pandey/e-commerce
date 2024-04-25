@@ -22,7 +22,6 @@ user:
 
   cache:
     port: 3000
-    driver: aerospikedb
 
   database:
     port: 5432

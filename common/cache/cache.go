@@ -12,6 +12,8 @@ import (
 	"k8s.io/klog/v2"
 )
 
+var _ Repository[any] = &AeroRepo[any]{}
+
 // AeroRepo represnts internal struct that
 // holds necessary component for Aerospike's operations
 type AeroRepo[T any] struct {
@@ -52,8 +54,8 @@ func NewAero[T any](config *Config) (*AeroRepo[T], error) {
 }
 
 // Set implments `Set()` method from cache's interface
-func (r *AeroRepo[T]) Set(ctx context.Context, value *T, exp time.Duration) error {
-	key, err := aero.NewKey(r.ns, r.set, value)
+func (r *AeroRepo[T]) Set(ctx context.Context, key any, value T, exp time.Duration) error {
+	aerokey, err := aero.NewKey(r.ns, r.set, key)
 	if err != nil {
 		klog.ErrorS(err, "cache: aero set error")
 		return err
@@ -61,20 +63,40 @@ func (r *AeroRepo[T]) Set(ctx context.Context, value *T, exp time.Duration) erro
 
 	bins := aero.BinMap{r.bin: value}
 	policy := aero.NewWritePolicy(0, uint32(exp.Seconds()))
-	return r.client.Put(policy, key, bins)
+	return r.client.Put(policy, aerokey, bins)
+}
+
+func (r *AeroRepo[T]) Delete(ctx context.Context, key any) error {
+	aerokey, err := aero.NewKey(r.ns, r.bin, key)
+	if err != nil {
+		klog.ErrorS(err, "cache: aerokey error")
+		return err
+	}
+
+	delPolicy := aero.NewWritePolicy(0, 0)
+	ok, err := r.client.Delete(delPolicy, aerokey)
+	if err != nil {
+		klog.ErrorS(err, "cache: aero delete error")
+		return nil
+	}
+
+	if !ok {
+		klog.Warning("failed to delete a key, the key might not be existing")
+	}
+	return nil
 }
 
 // Get implements `Get()` method from cache's interface
-func (r *AeroRepo[T]) Get(ctx context.Context, id string) (T, error) {
+func (r *AeroRepo[T]) Get(ctx context.Context, key any) (T, error) {
 	var result T
-	key, err := aero.NewKey(r.ns, r.bin, id)
+	aerokey, err := aero.NewKey(r.ns, r.bin, key)
 	if err != nil {
 		klog.ErrorS(err, "cache: aero get error")
 		return result, err
 	}
 
 	getPolicy := aero.NewPolicy()
-	record, err := r.client.Get(getPolicy, key, r.bin)
+	record, err := r.client.Get(getPolicy, aerokey, r.bin)
 	if err != nil {
 		if errors.Is(err, aero.ErrKeyNotFound) {
 			klog.ErrorS(err, "cache: key not found")

@@ -1,0 +1,6 @@
+package: httpapi
+generate:
+  models: true
+  embedded-spec: true
+  strict-server: true
+output: server/types.gen.go

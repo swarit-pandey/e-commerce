@@ -43,8 +43,10 @@ type Broker struct {
 }
 
 type Cache struct {
-	Port   int    `mapstructure:"port"`
-	Driver string `mapstructure:"driver"`
+	Address   string `mapstructure:"address"`
+	Port      int    `mapstructure:"port"`
+	LogLevel  string `mapstructure:"driver"`
+	Namespace string `mapstructure:"namespace"`
 }
 
 type Database struct {
