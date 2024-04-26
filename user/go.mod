@@ -3,8 +3,10 @@ module github.com/swarit-pandey/e-commerce/user
 go 1.21.8
 
 require (
+	github.com/aerospike/aerospike-client-go/v7 v7.2.1
 	github.com/getkin/kin-openapi v0.124.0
 	github.com/gin-gonic/gin v1.9.1
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/swarit-pandey/e-commerce/common v0.0.0-20240424015659-cb72f71c589a
 	gorm.io/gorm v1.25.9
@@ -12,7 +14,6 @@ require (
 )
 
 require (
-	github.com/aerospike/aerospike-client-go/v7 v7.2.1 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/bytedance/sonic v1.10.0-rc3 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20230717121745-296ad89f973d // indirect

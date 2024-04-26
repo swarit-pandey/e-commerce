@@ -1,4 +1,4 @@
-package service
+package cache
 
 import (
 	"context"
@@ -47,6 +47,21 @@ func NewCacheService(conf *config.Cache, userRepo repository.User, addrRepo repo
 	}, nil
 }
 
+func (cs *CacheService) SetUser(ctx context.Context, user *repository.User) error {
+	createdUser, err := cs.userInterface.Create(ctx, user)
+	if err != nil {
+		return err
+	}
+
+	err = cs.setUserInCache(ctx, *createdUser)
+	if err != nil {
+		klog.ErrorS(err, "failed to add a new user in cache")
+		return err
+	}
+
+	return nil
+}
+
 func (cs *CacheService) GetUser(ctx context.Context, userID uint) (*repository.User, error) {
 	// Scenario 1: Data found in cache
 	user, err := cs.getUserFromCache(ctx, userID)
@@ -84,9 +99,20 @@ func (cs *CacheService) getUserFromCache(ctx context.Context, userID uint) (*rep
 }
 
 func (cs *CacheService) setUserInCache(ctx context.Context, user repository.User) error {
-	key := fmt.Sprintf("user_%d", user.ID)
-	err := cs.cache.Set(ctx, key, user, 2*time.Hour)
-	return err
+	userIDKey := fmt.Sprintf("user_%d", user.ID)
+	usernameKey := fmt.Sprintf("user_username_%s", user.Username)
+
+	err := cs.cache.Set(ctx, userIDKey, user, 2*time.Hour)
+	if err != nil {
+		return err
+	}
+
+	err = cs.cache.Set(ctx, usernameKey, user, 2*time.Hour)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (cs *CacheService) GetAddress(ctx context.Context, addrID uint) (*repository.UserAddress, error) {
@@ -165,7 +191,7 @@ func (cs *CacheService) DeleteUser(ctx context.Context, userID uint) error {
 		return err
 	}
 
-	err = cs.deleteUserFromCache(ctx, user.ID)
+	err = cs.deleteUserFromCache(ctx, user)
 	if err != nil {
 		klog.ErrorS(err, "failed to delete from cache")
 		return err
@@ -173,10 +199,21 @@ func (cs *CacheService) DeleteUser(ctx context.Context, userID uint) error {
 	return nil
 }
 
-func (cs *CacheService) deleteUserFromCache(ctx context.Context, userID uint) error {
-	key := fmt.Sprintf("user_%d", userID)
-	err := cs.cache.Delete(ctx, key)
-	return err
+func (cs *CacheService) deleteUserFromCache(ctx context.Context, user *repository.User) error {
+	userIDKey := fmt.Sprintf("user_%d", user.ID)
+	usernameKey := fmt.Sprintf("user_username_%s", user.Username)
+
+	err := cs.cache.Delete(ctx, userIDKey)
+	if err != nil {
+		return err
+	}
+
+	err = cs.cache.Delete(ctx, usernameKey)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (cs *CacheService) DeleteAddress(ctx context.Context, addrID uint) error {
@@ -209,3 +246,44 @@ func (cs *CacheService) deleteAddressFromCache(ctx context.Context, addrID uint)
 	return err
 }
 
+func (cs *CacheService) GetUserByUsername(ctx context.Context, username string) (*repository.User, error) {
+	// Scenario 1: Data found in cache
+	user, err := cs.getUserFromCacheByUsername(ctx, username)
+	if err != nil {
+		return user, nil
+	}
+
+	// Scenario 2: Data not found in cache, get from repository
+	user, err = cs.userInterface.GetByUsername(ctx, user)
+	if err == nil {
+		// Write-through
+		err = cs.setUserInCache(ctx, *user)
+		if err != nil {
+			klog.ErrorS(err, "failed to write back the response onto the cache, cache debouncing might occur")
+		}
+		return user, nil
+	}
+
+	// Scenario 3: Data not found in cache and not in repository
+	return nil, ErrEntityNotFound
+}
+
+func (cs *CacheService) getUserFromCacheByUsername(ctx context.Context, username string) (*repository.User, error) {
+	key := fmt.Sprintf("user_username_%s", username)
+	value, err := cs.cache.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+
+	user, ok := value.(*repository.User)
+	if !ok {
+		return nil, ErrCacheInvalidated
+	}
+	return user, nil
+}
+
+func (cs *CacheService) SetPasswordResetToken(ctx context.Context, userID uint, token string) error {
+	key := fmt.Sprintf("reset_token_%d", userID)
+	err := cs.cache.Set(ctx, key, token, 6*time.Hour)
+	return err
+}

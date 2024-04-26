@@ -13,6 +13,7 @@ type UserRepo interface {
 	List(ctx context.Context, request *User) ([]User, error)
 	Exists(ctx context.Context, request *User) (bool, error)
 	Get(ctx context.Context, request *User) (*User, error)
+	GetByUsername(ctx context.Context, request *User) (*User, error)
 	Update(ctx context.Context, request *User) (*User, error)
 	Delete(ctx context.Context, request *User) (*User, error)
 }
@@ -78,6 +79,20 @@ func (ur *userRepo) Get(ctx context.Context, request *User) (*User, error) {
 	return resp, nil
 }
 
+func (ur *userRepo) GetByUsername(ctx context.Context, request *User) (*User, error) {
+	qf := database.QueryFilter{
+		WhereMap: map[string]any{
+			"username": request.Username,
+		},
+	}
+
+	resp, err := ur.handler.Get(ctx, qf, nil)
+	if err != nil {
+		return nil, errors.Join(ErrRead, err)
+	}
+	return resp, nil
+}
+
 func (ur *userRepo) Update(ctx context.Context, request *User) (*User, error) {
 	qf := database.QueryFilter{
 		WhereMap: map[string]any{
@@ -111,4 +126,3 @@ func (ur *userRepo) Delete(ctx context.Context, request *User) (*User, error) {
 
 	return request, nil
 }
-
