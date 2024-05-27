@@ -27,10 +27,10 @@ type UserService interface {
 	AddUserProfile(ctx context.Context, requestUser *httpapi.UserProfile, requestAddress *httpapi.Address) error
 
 	// AddUserAddress will add user address
-	AddUserAddress(ctx context.Context, userID, request *httpapi.Address) error
+	AddUserAddress(ctx context.Context, userID uint, request *httpapi.Address) error
 
 	// DeleteUserAddress will delete user address
-	DeleteUserAddress(ctx context.Context, userID uint) error
+	DeleteUserAddress(ctx context.Context, userID uint, addressID uint) error
 
 	// UpdateUserAddress will update the user address
 	UpdateUserAddress(ctx context.Context, userID uint, request *httpapi.Address) error

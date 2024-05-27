@@ -25,7 +25,7 @@ type CacheService struct {
 	addrInterface repository.AddressRepo
 }
 
-func NewCacheService(conf *config.Cache, userRepo repository.User, addrRepo repository.UserAddress) (*CacheService, error) {
+func NewCacheService(conf *config.Cache, userRepo repository.User, userInterface repository.UserRepo, addrRepo repository.UserAddress, addressInterface repository.AddressRepo) (*CacheService, error) {
 	cacheConfig := cache.Config{
 		URL:       conf.Address,
 		Port:      conf.Port,
@@ -41,9 +41,11 @@ func NewCacheService(conf *config.Cache, userRepo repository.User, addrRepo repo
 	}
 
 	return &CacheService{
-		cache:    aeroCache,
-		userRepo: userRepo,
-		addrRepo: addrRepo,
+		cache:         aeroCache,
+		userRepo:      userRepo,
+		userInterface: userInterface,
+		addrRepo:      addrRepo,
+		addrInterface: addressInterface,
 	}, nil
 }
 

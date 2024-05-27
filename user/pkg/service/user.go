@@ -9,6 +9,8 @@ import (
 	"net/mail"
 	"net/smtp"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 	"unicode"
 
@@ -149,7 +151,45 @@ func (us *userService) InitiatePasswordReset(ctx context.Context, request *httpa
 
 // UpdatePassword implements `UpdatePassword()` from UserService interface
 func (us *userService) UpdatePassword(ctx context.Context, request *httpapi.PasswordUpdateRequest) error {
+	err := validate(*request.NewPassword, "password")
+	if err != nil {
+		return errors.Join(ErrInvalidPassword, err)
+	}
 
+	userID, token := parseResetToken(request.Token)
+	if userID == 0 || token == "" {
+		return ErrResetToken
+	}
+
+	users := us.inMemCache.getBatchInMem()
+	var user *repository.User
+	for _, u := range users {
+		if u.ID == userID {
+			user = u
+			break
+		}
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	cachedToken, err := generateResetToken(user)
+	if err != nil || cachedToken != token {
+		return ErrResetToken
+	}
+
+	newPasswordHash, err := hashPassword(*request.NewPassword)
+	if err != nil {
+		return errors.Join(ErrHashingPassword, err)
+	}
+
+	user.PasswordHash = newPasswordHash
+	err = us.cacheService.SetUser(ctx, user)
+	if err != nil {
+		return errors.Join(ErrSettingToCache, err)
+	}
+
+	us.inMemCache.setInMemory(user)
 	return nil
 }
 
@@ -157,32 +197,128 @@ func (us *userService) UpdatePassword(ctx context.Context, request *httpapi.Pass
 func (us *userService) GetUserProfile(ctx context.Context, userID uint) (*httpapi.UserProfile, error) {
 	response := &httpapi.UserProfile{}
 
-	// Get batch, then match and return
+	user, err := us.cacheService.GetUser(ctx, userID)
+	if err != nil {
+		return response, errors.Join(ErrGettingFromCache, err)
+	}
+
+	response.Username = &user.Username
+	response.Email = &user.Email
+	response.Name = &user.Name
 
 	return response, nil
 }
 
-// AddUserProfile implements `AddUserProfile()` from UserService inteface
+// AddUserProfile implements `AddUserProfile()` from UserService interface
 func (us *userService) AddUserProfile(ctx context.Context, requestUser *httpapi.UserProfile, requestAddress *httpapi.Address) error {
+	user, err := us.cacheService.GetUserByUsername(ctx, *requestUser.Username)
+	if err != nil {
+		return errors.Join(ErrGettingFromCache, err)
+	}
 
+	if requestUser.Email != nil {
+		user.Email = *requestUser.Email
+	}
+	if requestUser.Name != nil {
+		user.Name = *requestUser.Name
+	}
+
+	err = us.cacheService.SetUser(ctx, user)
+	if err != nil {
+		return errors.Join(ErrSettingToCache, err)
+	}
+
+	us.inMemCache.setInMemory(user)
 	return nil
 }
 
 // AddUserAddress implements `AddUserAddress()` from UserService interface
-func (us *userService) AddUserAddress(ctx context.Context, userID, request *httpapi.Address) error {
+func (us *userService) AddUserAddress(ctx context.Context, userID uint, request *httpapi.Address) error {
+	user, err := us.cacheService.GetUser(ctx, userID)
+	if err != nil {
+		return errors.Join(ErrGettingFromCache, err)
+	}
 
+	address := &repository.UserAddress{
+		AddressLine1: *request.AddressLine1,
+		AddressLine2: *request.AddressLine2,
+		City:         *request.City,
+		State:        *request.State,
+		Country:      *request.Country,
+		PostalCode:   *request.Code,
+	}
+
+	user.Addresses = append(user.Addresses, *address)
+
+	err = us.cacheService.SetUser(ctx, user)
+	if err != nil {
+		return errors.Join(ErrSettingToCache, err)
+	}
+
+	us.inMemCache.setInMemory(user)
 	return nil
 }
 
 // DeleteUserAddress implements `DeleteUserAddress()` from UserService interface
-func (us *userService) DeleteUserAddress(ctx context.Context, userID uint) error {
+func (us *userService) DeleteUserAddress(ctx context.Context, userID uint, addressID uint) error {
+	user, err := us.cacheService.GetUser(ctx, userID)
+	if err != nil {
+		return errors.Join(ErrGettingFromCache, err)
+	}
 
+	newAddresses := make([]repository.UserAddress, 0)
+	for _, address := range user.Addresses {
+		if address.ID != addressID {
+			newAddresses = append(newAddresses, address)
+		}
+	}
+	user.Addresses = newAddresses
+
+	err = us.cacheService.SetUser(ctx, user)
+	if err != nil {
+		return errors.Join(ErrSettingToCache, err)
+	}
+
+	us.inMemCache.setInMemory(user)
 	return nil
 }
 
-// UpdateUserAddress implements `UpdateUserAddress` from UserService interface
+// UpdateUserAddress implements `UpdateUserAddress()` from UserService interface
 func (us *userService) UpdateUserAddress(ctx context.Context, userID uint, request *httpapi.Address) error {
+	user, err := us.cacheService.GetUser(ctx, userID)
+	if err != nil {
+		return errors.Join(ErrGettingFromCache, err)
+	}
 
+	for _, address := range user.Addresses {
+		if address.ID == uint(*request.Id) {
+			if request.AddressLine1 != nil {
+				address.AddressLine1 = *request.AddressLine1
+			}
+			if request.AddressLine2 != nil {
+				address.AddressLine2 = *request.AddressLine2
+			}
+			if request.City != nil {
+				address.City = *request.City
+			}
+			if request.State != nil {
+				address.State = *request.State
+			}
+			if request.Country != nil {
+				address.Country = *request.Country
+			}
+			if request.Code != nil {
+				address.PostalCode = *request.Code
+			}
+		}
+	}
+
+	err = us.cacheService.SetUser(ctx, user)
+	if err != nil {
+		return errors.Join(ErrSettingToCache, err)
+	}
+
+	us.inMemCache.setInMemory(user)
 	return nil
 }
 
@@ -284,7 +420,7 @@ func generateResetToken(user *repository.User) (string, error) {
 	}
 
 	randString := base64.URLEncoding.EncodeToString(randBytes)
-	resetToken := fmt.Sprintf("%d:%d", user.ID, randString)
+	resetToken := fmt.Sprintf("%v:%v", user.ID, randString)
 	return resetToken, nil
 }
 
@@ -311,4 +447,18 @@ func sendResetToken(email, token string) error {
 	}
 
 	return nil
+}
+
+func parseResetToken(token string) (uint, string) {
+	parts := strings.Split(token, ":")
+	if len(parts) != 2 {
+		return 0, ""
+	}
+
+	userID, err := strconv.ParseUint(parts[0], 10, 32)
+	if err != nil {
+		return 0, ""
+	}
+
+	return uint(userID), parts[1]
 }

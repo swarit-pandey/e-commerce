@@ -50,7 +50,7 @@ type Cache struct {
 }
 
 type Database struct {
-	Port        int    `mapstructure:"port"`
+	Port        string `mapstructure:"port"`
 	Driver      string `mapstructure:"driver"`
 	Address     string `mapstructure:"address"`
 	Dialect     string `mapstructure:"dialect"`
@@ -59,4 +59,6 @@ type Database struct {
 	Password    string `mapstructure:"password"`
 	SSL         string `mapstructure:"ssl"`
 	MaxConnPool int    `mapstructure:"maxconnpool"`
+	SchemaName  string `mapstructure:"schema-name"`
+	DBName      string `mapstructure:"db-name"`
 }
